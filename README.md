@@ -5,7 +5,6 @@
 [![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/JamesWoolfenden/terraform-gcp-project-metadata.svg?label=latest)](https://github.com/JamesWoolfenden/terraform-gcp-project-metadata/releases/latest)
 ![Terraform Version](https://img.shields.io/badge/tf-%3E%3D1.5.0-blue.svg)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
-[![checkov](https://img.shields.io/badge/checkov-verified-brightgreen)](https://www.checkov.io/)
 
 Terraform module for project-wide Compute Engine metadata, defaulting to OS
 Login with 2FA, blocked project SSH keys and serial port logging. Exercises
@@ -70,6 +69,7 @@ No modules.
 | Name | Description |
 | ---- | ----------- |
 | <a name="output_metadata"></a> [metadata](#output\_metadata) | Effective project-wide Compute Engine metadata |
+| <a name="output_startup_script_id"></a> [startup\_script\_id](#output\_startup\_script\_id) | ID of the project-wide startup-script metadata item, null when no startup script is set |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 
 ## Help
