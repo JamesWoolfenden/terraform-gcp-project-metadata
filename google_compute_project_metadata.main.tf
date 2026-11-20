@@ -10,4 +10,10 @@ resource "google_compute_project_metadata" "main" {
     },
     var.additional_metadata,
   )
+
+  lifecycle {
+    # startup-script is owned by google_compute_project_metadata_item.startup_script;
+    # without this the authoritative map deletes it on every apply.
+    ignore_changes = [metadata["startup-script"]]
+  }
 }

@@ -1,0 +1,120 @@
+{
+  "category": "all",
+  "findings": [
+    {
+      "confidence": "high",
+      "explanation": "google_compute_project_metadata owns the whole commonInstanceMetadata map, so when var.startup_script is set the startup-script key written by google_compute_project_metadata_item.startup_script shows up as drift on main and the next apply deletes it, after which the item recreates it: a perpetual diff, and instances booting in between get no startup script. The two resources also have no ordering, so on first create main can replace the map after the item has written its key. A startup-script key in var.additional_metadata would additionally be owned by both resources. Principle is a best fit: this is an apply-time correctness bug, not an availability control.",
+      "file": "google_compute_project_metadata.main.tf",
+      "first_seen": "2026-11-20",
+      "fixable": false,
+      "id": "HOLDEN_AI_001",
+      "last_seen": "2026-11-20",
+      "line": 1,
+      "principle": "reliability",
+      "related_resources": [
+        "google_compute_project_metadata_item.startup_script",
+        "variable.additional_metadata"
+      ],
+      "remediation": "Ignore the startup-script key on the authoritative resource, make the item depend on it (reference main's project), and refuse startup-script in var.additional_metadata.",
+      "resource": "google_compute_project_metadata.main",
+      "severity": "MEDIUM",
+      "status": "fixed",
+      "suppression_reason": null,
+      "title": "Authoritative project metadata fights the startup-script metadata item it is deployed alongside",
+      "unresolved_since": null
+    },
+    {
+      "confidence": "high",
+      "explanation": "The validations only stop disabling enable-oslogin and setting ssh-keys. serial-port-enable = TRUE passes and turns on interactive serial console access for every instance in the project (CIS GCP 4.5); serial console connections are not restricted by firewall rules or IP allowlists. That contradicts the module's stated purpose of refusing the usual ways of undoing its hardening. No deterministic rule covers serial-port-enable on project metadata.",
+      "file": "variables.tf",
+      "first_seen": "2026-11-20",
+      "fix": "validation {\n  condition     = !anytrue([for k, v in var.additional_metadata : k == \"serial-port-enable\" && contains([\"TRUE\", \"1\"], upper(v))])\n  error_message = \"var.additional_metadata must not enable the interactive serial console (serial-port-enable)\"\n}",
+      "fixable": true,
+      "id": "HOLDEN_AI_002",
+      "last_seen": "2026-11-20",
+      "line": 11,
+      "principle": "network-security",
+      "related_resources": [
+        "google_compute_project_metadata.main"
+      ],
+      "remediation": "Add a validation refusing serial-port-enable values of TRUE/true/1 in var.additional_metadata.",
+      "resource": "variable.additional_metadata",
+      "severity": "MEDIUM",
+      "status": "fixed",
+      "suppression_reason": null,
+      "title": "var.additional_metadata can enable the interactive serial console project-wide",
+      "unresolved_since": null
+    },
+    {
+      "confidence": "medium",
+      "explanation": "The validation only rejects the ssh-keys key, but the guest environment still reads the deprecated sshKeys key, so project-wide SSH keys can be injected under the legacy name. With enable-oslogin forced on it only matters for instances that turn OS Login off at instance level, hence LOW and medium confidence (depends on guest agent version).",
+      "file": "variables.tf",
+      "first_seen": "2026-11-20",
+      "fix": "condition     = length(setintersection(keys(var.additional_metadata), [\"ssh-keys\", \"sshKeys\"])) == 0",
+      "fixable": true,
+      "id": "HOLDEN_AI_003",
+      "last_seen": "2026-11-20",
+      "line": 11,
+      "principle": "identity-and-access",
+      "related_resources": [
+        "google_compute_project_metadata.main"
+      ],
+      "remediation": "Reject both ssh-keys and sshKeys in var.additional_metadata.",
+      "resource": "variable.additional_metadata",
+      "severity": "LOW",
+      "status": "fixed",
+      "suppression_reason": null,
+      "title": "ssh-keys guard can be bypassed with the legacy sshKeys metadata key",
+      "unresolved_since": null
+    },
+    {
+      "confidence": "high",
+      "explanation": "var.additional_metadata is merged over the defaults, so enable-oslogin-2fa, block-project-ssh-keys and serial-port-logging-enable can each be set to FALSE with no validation error, weakening 2FA and serial-port audit logging while the README describes these as defaults of a hardening module.",
+      "file": "variables.tf",
+      "first_seen": "2026-11-20",
+      "fixable": false,
+      "id": "HOLDEN_AI_004",
+      "last_seen": "2026-11-20",
+      "line": 11,
+      "principle": "identity-and-access",
+      "related_resources": [
+        "google_compute_project_metadata.main"
+      ],
+      "remediation": "Either refuse overriding those keys to anything other than TRUE, or document clearly that only enable-oslogin and ssh-keys are enforced and the rest are overridable defaults.",
+      "resource": "variable.additional_metadata",
+      "severity": "LOW",
+      "status": "suppressed",
+      "suppression_reason": "Not fixed: var.additional_metadata is documented as merged over the defaults, and enforcing these keys would break callers with legitimate opt-outs (2FA needs every OS Login user enrolled; serial-port logging has cost/PII trade-offs). README now states that only enable-oslogin, ssh-keys/sshKeys, serial-port-enable and startup-script are enforced and the rest are overridable defaults.",
+      "title": "Other hardening defaults can be silently overridden through var.additional_metadata",
+      "unresolved_since": null
+    }
+  ],
+  "scan_date": "2026-11-20T00:00:00Z",
+  "scan_path": ".",
+  "suggested_policies": [
+    {
+      "first_seen": "2026-11-20",
+      "last_seen": "2026-11-20",
+      "rationale": "Interactive serial console access (serial-port-enable) set in project-wide metadata applies to every instance in the project and bypasses firewall/IP restrictions (CIS GCP 4.5). The existing project-metadata policies only check enable-oslogin.",
+      "status": "installed",
+      "yaml": "id: LOCAL_GCP_001\nname: GCP project metadata must not enable the interactive serial console\nprinciple: network-security\nseverity: MEDIUM\nrationale: |\n  serial-port-enable in project-wide metadata turns on interactive serial\n  console access for every instance in the project. Serial console\n  connections are not subject to VPC firewall rules (CIS GCP 4.5).\nmessage: |\n  google_compute_project_metadata sets metadata.serial-port-enable to true.\nremediation: |\n  Remove serial-port-enable from the metadata map, or set it to \"FALSE\".\nresources:\n  google_compute_project_metadata:\n    path: metadata.serial-port-enable\n    not_one_of: [\"TRUE\", \"true\", \"1\"]\n"
+    },
+    {
+      "first_seen": "2026-11-20",
+      "last_seen": "2026-11-20",
+      "rationale": "Same as LOCAL_GCP_001 for the single-key google_compute_project_metadata_item form, mirroring how HLD_GCP_160/HLD_GCP_320 pair up for enable-oslogin.",
+      "status": "installed",
+      "yaml": "id: LOCAL_GCP_002\nname: GCP project metadata item must not enable the interactive serial console\nprinciple: network-security\nseverity: MEDIUM\nrationale: |\n  A google_compute_project_metadata_item with key serial-port-enable set to\n  true enables interactive serial console access on every instance in the\n  project, outside VPC firewall control (CIS GCP 4.5).\nmessage: |\n  google_compute_project_metadata_item enables serial-port-enable project-wide.\nremediation: |\n  Remove the metadata item, or set its value to \"FALSE\".\nresources:\n  google_compute_project_metadata_item:\n    filter:\n      path: key\n      equals: serial-port-enable\n    path: value\n    not_one_of: [\"TRUE\", \"true\", \"1\"]\n"
+    },
+    {
+      "dsl_extension_note": "forbids_companion with linked_via expresses the same-project join, but the check must be exempted when the companion's lifecycle.ignore_changes contains metadata[\"<subject.key>\"]. Needs a where-condition on lifecycle meta-arguments (ignore_changes) with a value interpolated from the subject resource's key attribute; without it the rule fires on the correctly-mitigated pattern too.",
+      "first_seen": "2026-11-20",
+      "last_seen": "2026-11-20",
+      "rationale": "google_compute_project_metadata is authoritative over the whole project metadata map; any google_compute_project_metadata_item in the same project is removed on the next apply unless its key is in the authoritative resource's lifecycle.ignore_changes. Concrete and applies to any Terraform using both types, but needs a cross-resource check.",
+      "requires_dsl_extension": true,
+      "status": "suggested",
+      "yaml": "id: LOCAL_GCP_003\nname: Project metadata items must not be managed alongside authoritative project metadata\nprinciple: reliability\nseverity: MEDIUM\nrationale: |\n  google_compute_project_metadata replaces the whole project metadata map, so\n  a google_compute_project_metadata_item in the same project causes a perpetual\n  diff and is deleted on every apply of the authoritative resource.\nmessage: |\n  google_compute_project_metadata_item shares a project with an authoritative\n  google_compute_project_metadata whose lifecycle does not ignore its key.\nremediation: |\n  Fold the key into google_compute_project_metadata.metadata, or add\n  lifecycle { ignore_changes = [metadata[\"<key>\"]] } to the authoritative resource.\nresources:\n  google_compute_project_metadata_item:\n    forbids_companion:\n      type: google_compute_project_metadata\n      linked_via:\n        from: project\n        to: project\n"
+    }
+  ],
+  "suggested_suppressions": []
+}

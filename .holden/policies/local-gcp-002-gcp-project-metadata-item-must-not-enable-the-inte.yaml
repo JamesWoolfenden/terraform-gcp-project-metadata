@@ -1,0 +1,19 @@
+id: LOCAL_GCP_002
+name: GCP project metadata item must not enable the interactive serial console
+principle: network-security
+severity: MEDIUM
+rationale: |
+  A google_compute_project_metadata_item with key serial-port-enable set to
+  true enables interactive serial console access on every instance in the
+  project, outside VPC firewall control (CIS GCP 4.5).
+message: |
+  google_compute_project_metadata_item enables serial-port-enable project-wide.
+remediation: |
+  Remove the metadata item, or set its value to "FALSE".
+resources:
+  google_compute_project_metadata_item:
+    filter:
+      path: key
+      equals: serial-port-enable
+    path: value
+    not_one_of: ["TRUE", "true", "1"]

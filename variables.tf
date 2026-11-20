@@ -19,8 +19,18 @@ variable "additional_metadata" {
   }
 
   validation {
-    condition     = !contains(keys(var.additional_metadata), "ssh-keys")
-    error_message = "var.additional_metadata must not set project-wide ssh-keys, use OS Login instead"
+    condition     = length(setintersection(keys(var.additional_metadata), ["ssh-keys", "sshKeys"])) == 0
+    error_message = "var.additional_metadata must not set project-wide ssh-keys or the legacy sshKeys, use OS Login instead"
+  }
+
+  validation {
+    condition     = !anytrue([for k, v in var.additional_metadata : k == "serial-port-enable" && contains(["TRUE", "1"], upper(v))])
+    error_message = "var.additional_metadata must not enable the interactive serial console (serial-port-enable)"
+  }
+
+  validation {
+    condition     = !contains(keys(var.additional_metadata), "startup-script")
+    error_message = "var.additional_metadata must not set startup-script, use var.startup_script instead"
   }
 }
 

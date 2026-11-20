@@ -30,9 +30,14 @@ Where you only want to own a single entry, use
 google_compute_project_metadata_item instead — the startup script here is done
 that way.
 
-var.additional_metadata refuses to disable OS Login or to set project-wide
-ssh-keys, which are the two ways this resource is usually used to undo
-hardening.
+var.additional_metadata refuses to disable OS Login, to set project-wide
+ssh-keys (or the legacy sshKeys) and to enable the interactive serial console
+(serial-port-enable), which are the usual ways this resource is used to undo
+hardening. It also refuses startup-script; use var.startup_script, which is
+managed as a separate metadata item that the authoritative resource ignores.
+The other defaults (enable-oslogin-2fa, block-project-ssh-keys and
+serial-port-logging-enable) are overridable defaults, not enforced: setting
+them to FALSE in var.additional_metadata turns them off.
 
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
